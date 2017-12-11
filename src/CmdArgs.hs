@@ -21,12 +21,20 @@ module CmdArgs (
 )
 where
 
-import Options.Applicative hiding   (helper)
+import Data.Monoid                  ( (<>) )
+                                    -- needed - Data.Monoid
+                                    -- not imported by all versions of Options
+
+import Options.Applicative hiding   (helper, strOption)
+import qualified Options.Applicative as Op
 import Options.Applicative.Types    (readerAsk)
 
 import System.Environment
 
 import DeliveryHeaders              ( Addr(..) )
+
+strOption :: Mod OptionFields String -> Parser String
+strOption = Op.strOption
 
 -- | A hidden \"helper\" option which always fails.
 helper :: Parser (a -> a)
