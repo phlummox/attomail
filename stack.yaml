@@ -1,0 +1,15 @@
+resolver: lts-7.24
+
+packages:
+- .
+
+extra-deps:
+- hsemail-ns-1.7.7
+
+# Override default flag values for local packages and extra-deps
+flags: {}
+
+# Extra package databases containing global packages
+extra-package-dbs: []
+
+
