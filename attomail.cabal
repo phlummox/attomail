@@ -29,7 +29,7 @@ executable attomail
   build-depends:       
                        base >= 4.4 && < 5
                      , bytestring
-                     , directory
+                     , directory >= 1.2.2.0
                      , MissingH
                       -- used for Data.Either.Utils
                      , mtl

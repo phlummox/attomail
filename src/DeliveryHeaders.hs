@@ -26,6 +26,7 @@ module DeliveryHeaders (
 ) where
 
 import Control.Arrow              (left)
+import Control.Applicative        ( (<$>) )
 
 import Data.ByteString.Char8      (unpack)
 import Data.Char                  (isSpace)

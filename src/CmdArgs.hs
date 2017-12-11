@@ -21,7 +21,7 @@ module CmdArgs (
 )
 where
 
-import Data.Monoid                  ( (<>) )
+import Data.Monoid                  ( (<>), mconcat )
                                     -- needed - Data.Monoid
                                     -- not imported by all versions of Options
 
