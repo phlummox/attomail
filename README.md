@@ -112,5 +112,5 @@ Probably won't work on anything but Linux systems.
 ## API
 
 None, yet, there's only an executable, not a library. But (*sssh*) take a peek
-[here](https://hackage.haskell.org/package/attomail-0.1.0.1/candidate/docs) if you like, there should be some minimal documentation of the internal modules.
+[here](https://hackage.haskell.org/package/attomail-0.1.0.2/docs) if you like, there should be some minimal documentation of the internal modules.
 

@@ -1,5 +1,5 @@
 name:                attomail
-version:             0.1.0.1
+version:             0.1.0.2
 category:            Network, Email   
 build-type:          Simple
 cabal-version:       >=1.10
