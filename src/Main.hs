@@ -1,8 +1,6 @@
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE BangPatterns #-}
-{-# OPTIONS_GHC -Wno-name-shadowing -Wno-deprecations #-}
-
 
 {- |
 
