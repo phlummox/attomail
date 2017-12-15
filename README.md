@@ -11,6 +11,8 @@ mailDir = /path/to/my/home/dir/Maildir/new
 userName = myuserid
 EOF
 $ mkdir -p /path/to/my/home/dir/Maildir/new
+$ sudo ln -s /usr/local/bin/attomail /usr/sbin/sendmail
+
 ~~~
 
 ## prerequisites
