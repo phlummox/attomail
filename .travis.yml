@@ -1,5 +1,0 @@
-language: haskell
-
-ghc:
-  - "7.10"
-
