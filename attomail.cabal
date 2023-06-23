@@ -16,7 +16,7 @@ license-file:        LICENSE
 author:              phlummox
 maintainer:          phlummox2@gmail.com
 copyright:           phlummox 2017
-extra-source-files:  README.md, stack.yaml, ChangeLog.md
+extra-source-files:  README.md, CHANGELOG.md
 
 source-repository head
   type:     git
