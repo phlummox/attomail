@@ -15,7 +15,7 @@ license:             BSD2
 license-file:        LICENSE
 author:              phlummox
 maintainer:          phlummox2@gmail.com
-copyright:           phlummox 2017
+copyright:           phlummox 2017-2023
 extra-source-files:  README.md, CHANGELOG.md
 
 source-repository head
