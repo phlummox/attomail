@@ -19,19 +19,14 @@ Tidy this up, shift some of the logic out to another module.
 module Main
 where
 
-import Control.Arrow              (left)
-import Control.Exception          (bracket, throw, assert)
+import Control.Arrow
+import Control.Exception          (bracket, throw)
 import Control.Monad              (when)
-import Control.Monad.Error.Class  (Error(..), MonadError(..) )
-import Control.Monad.Trans.Class  (lift)
-import Control.Monad.Trans.Maybe  (MaybeT(..))
+import Control.Monad.Except
 
-
-import Data.ConfigFile            (emptyCP, readfile
-                                  , optionxform, get  )
+import Data.Char                  (isSpace)
 import Data.List                  (foldl')
 import Data.Monoid
-import Data.Maybe                 (fromJust)
 import Data.Time.Clock.POSIX      (getPOSIXTime)
 
 import Foreign.C.Types            (CInt(..))
@@ -40,7 +35,7 @@ import Foreign.C.Error            (throwErrnoIfMinus1_)
 import Network.BSD                (getHostName)
 
 import System.Directory           (setCurrentDirectory, makeAbsolute)
-import System.Environment         (withArgs)
+
 import System.IO                  (Handle, hClose, stderr,
                                   hPutStrLn, hPutStr)
 import System.IO.Error            (modifyIOError)
@@ -53,6 +48,8 @@ import System.Posix.Types         (CGid(..), CUid(..), UserID
 import System.Random              (getStdRandom, randomR)
 
 import Text.ConfigParser
+import Text.Parsec                ( satisfy, many1 )
+import Text.Parsec.Text           ( Parser )
 
 import ConfigLocation             (configFileLocn)
 import CmdArgs                    (AttCmdArgs(..), withCmdArgs)
@@ -146,30 +143,48 @@ warning :: String -> IO ()
 warning str =
   hPutStrLn stderr $ "attomail: warning: " <> str
 
--- | for use with Either
-mkError :: Error a => (t -> String) -> Either t b -> Either a b
-mkError f = left (strMsg . f)
-
-
 -- * Program config
 
 -- | Configuration, as read from the config file.
-data Config = Config { mailDir :: String, userName :: String }
+data Config = Config { mailDir :: !String, userName :: !String }
   deriving (Show, Eq)
 
--- | @getConfig filename@ reads the config file at @filename@.
-getConfig :: String -> IO Config
-getConfig confFile = do
-  cp <- readfile ( emptyCP { optionxform = id } ) (confFile:: String)
-  cp <- return $ let f err = "Error reading config file '" <> confFile <> "': "
-                             <> show err
-                 in forceEitherMsg cp f
 
-  let mailDir = let f err = "Error getting option 'mailDir': " <> show err
-                 in  forceEitherMsg (get cp "DEFAULT" "mailDir") f
-  let userName = let f err = "Error getting option 'userName': " <> show err
-                 in  forceEitherMsg (get cp "DEFAULT" "userName") f
-  return $ Config mailDir userName
+cp :: ConfigParser (Maybe String, Maybe String)
+cp = configParser (Nothing,Nothing) [parseMailDir, parseUserName]
+  where
+    parseMailDir = ConfigOption {
+          key = "mailDir"
+        , required = True
+        , parser = string'
+        , action = \x -> Control.Arrow.first (const $ Just x)
+        }
+    parseUserName = ConfigOption {
+          key = "userName"
+        , required = True
+        , parser = string'
+        , action = \x -> Control.Arrow.second (const $ Just x)
+        }
+
+    string' :: Parser String
+    string' =  many1 (satisfy (not . isSpace))
+
+
+
+-- | @getConfig filename@ reads the config file at @filename@.
+getConfig :: FilePath -> IO Config
+getConfig confFile = do
+  conf <- parseFromFile cp confFile
+  case conf of
+    Left msg ->     do warning $ "Error parsing config file "  <>
+                          show confFile <> ":"
+                       warning $ show msg
+                       error "error"
+    Right (Just mailDir, Just userName) ->
+                    return $ Config mailDir userName
+    _        ->     error "should be impossible"
+
+
 
 -- * whopping big monolithic funcs
 
@@ -182,7 +197,7 @@ getConfig confFile = do
 --
 deliverMail :: FilePath -> String -> AttCmdArgs -> IO ()
 deliverMail mailDir userName cmdArgs = do
-  let (!AttCmdArgs !fromAddress !_nm !recipients) = cmdArgs
+  let (AttCmdArgs fromAddress _nm recipients) = cmdArgs
 
   (uid, gid) <- flip modifyIOError
                  (getUserIDs userName)
@@ -239,7 +254,8 @@ main = do
                                 (getConfig ConfigLocation.configFileLocn)
                                 (\ioErr -> userError $
                                    "couldn't open config"
-                                   <> "file, error was: " <> show ioErr)
+                                   <> "file, error was: " <>
+                                      show ioErr)
   withCmdArgs (deliverMail mailDir userName)
 
 

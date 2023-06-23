@@ -5,6 +5,7 @@ packages:
 
 extra-deps:
 - hsemail-ns-1.7.7
+- config-parser-1.2.0.0
 
 # Override default flag values for local packages and extra-deps
 flags:

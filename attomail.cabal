@@ -60,8 +60,8 @@ executable attomail
                      , transformers
                      , unix
                      , unix-time
-                     -- 
-                     , ConfigFile
+                     --
+                     , config-parser
                      , hsemail-ns >= 1.7.7
                      , optparse-applicative
   if flag(use-network-bsd)
@@ -71,6 +71,7 @@ executable attomail
                        CmdArgs
                      , ConfigLocation
                      , DeliveryHeaders
+                     , Version
 
   ghc-options:       -Wall -Wincomplete-record-updates
                      -Wincomplete-uni-patterns
