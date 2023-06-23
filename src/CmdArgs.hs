@@ -30,6 +30,7 @@ import qualified Options.Applicative as Op
 import Options.Applicative.Types    (readerAsk)
 
 import DeliveryHeaders              ( Addr(..) )
+import Version                      (getVersion)
 
 strOption :: Mod OptionFields String -> Parser String
 strOption = Op.strOption
@@ -58,27 +59,26 @@ data AttCmdArgs = AttCmdArgs
   {
       senderEnvelopeAddress :: Maybe Addr -- ^ Possible envelope address.
     , senderFullName :: Maybe String  -- ^ Possible sender full name
-    , recipients :: [Addr] -- ^ Recipients. (Ignored.)
+    , recipients :: [Addr] -- ^ Recipients.
   }
   deriving (Eq, Show)
 
 -- | Parser for command-line args.
 --
--- TODO:
---
--- add more (ignored) options.
--- see http://www.sendmail.org/~ca/email/man/sendmail.html
+-- see <http://www.sendmail.org/~ca/email/man/sendmail.html>
+-- or something like <https://manpages.ubuntu.com/manpages/bionic/man1/mailq.1.html>
+-- for meanings of ignored options.
 attCmdArgs :: Parser AttCmdArgs
-attCmdArgs = AttCmdArgs 
+attCmdArgs = AttCmdArgs
   <$> option addr
-      ( short 'f' 
-        <> value Nothing 
-        <> metavar "ADDRESS" 
+      ( short 'f'
+        <> value Nothing
+        <> metavar "ADDRESS"
         <> help "Sender envelope address" )
-  
+
   <*> ( option name
-      ( short 'F' 
-        <> value Nothing 
+      ( short 'F'
+        <> value Nothing
         <> metavar "NAME"
         <> help "Sender full name" )
     <* option (mode 'm')
@@ -86,48 +86,52 @@ attCmdArgs = AttCmdArgs
         <> value ()
         <> metavar "MODE"
         <> help "-bm: Read input from stdin" )
-    <* switch   
+    <* switch
         ( short 'i'
-          <> help "(ignored, used only for compatibility with sendmail")
-    <* many ( strOption   
+          <> help "Ignored, used only for compatibility with sendmail. (Originally: 'Ignore dots alone on lines by themselves in incoming messages.')")
+    <* switch
+        ( short 't'
+          <> help "Ignored, used only for compatibility with sendmail. (Originally: 'Read message to work out the recipients.')")
+    <* many ( strOption
         ( short 'o'
-          <> help "(ignored, used only for compatibility with sendmail"))
-    <* many ( strOption   
+          <> help "Ignored, used only for compatibility with sendmail. (Originally: set an option.)"))
+    <* many ( strOption
         ( short 'O'
-          <> help "(ignored, used only for compatibility with sendmail"))
-    <* many ( strOption   
+          <> help "Ignored, used only for compatibility with sendmail. (Originally: set an option.)"))
+    <* many ( strOption
         ( short 'B'
-          <> help "(ignored, used only for compatibility with sendmail"))
-    <* many ( strOption   
+          <> metavar "TYPE"
+          <> help "Ignored, used only for compatibility with sendmail. (Originally: Set the body type to TYPE.  Current legal values are 7BIT or 8BITMIME.)"))
+    <* many ( strOption
         ( short 'q'
-          <> help "(ignored, used only for compatibility with sendmail"))
-    <* switch   
+          <> help "Ignored, used only for compatibility with sendmail. (Originally: used to specify a queue interval.)"))
+    <* switch
         ( short 'v'
-          <> help "(ignored, used only for compatibility with sendmail")
+          <> help "Ignored, used only for compatibility with sendmail. (Originally: enable verbose output.)")
         )
-  <*> some ( argument (Addr <$> str) (metavar "RECIPIENTS...") )
+  <*> many ( argument (Addr <$> str)
+             (metavar "RECIPIENTS..."
+             <> help "Recipients to send to. Used to construct a 'To:' address, but otherwise ignored: attomail always delivers to a config-specified mail folder."
+              )
+            )
 
--- | program version
-version :: String
-version = "0.1.0.2"
-
-
--- | just used for testing
-doStuff :: AttCmdArgs -> IO ()
-doStuff x@AttCmdArgs{} = 
-  print x
-
+versionOption :: Parser (a -> a)
+versionOption =
+  infoOption displayedVersion ( long "version"
+                        <> help "display version"
+                        )
+  where
+    displayedVersion = getVersion
 
 withCmdArgs :: (AttCmdArgs -> IO b) -> IO b
 withCmdArgs f = execParser opts >>= f
   where
-    --opts = info (helper <*> attCmdArgs)
-    opts = info (attCmdArgs <**> Op.helper)
+    opts = info (attCmdArgs <**> Op.helper <**> versionOption)
       ( fullDesc
         <> progDesc desc
         <> header h )
 
     desc = "read a message on stdin and deliver it to user in config file"
-    h    = "attomail v " <> version <> "simple mail delivery to one user"  
+    h    = "attomail v " <> getVersion <> " simple mail delivery to one user"
 
 
