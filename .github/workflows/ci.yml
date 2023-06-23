@@ -191,7 +191,7 @@ jobs:
           mkdir binaries/attomail-alpine
           cp binaries/attomail binaries/attomail-alpine/
           sudo apk add fakeroot
-          fakeroot tar cvf `cat PACKAGE_PLUS_VERSION.txt`.tgz --gzip -C binaries attomail
+          fakeroot tar cvf `cat PACKAGE_PLUS_VERSION.txt`-linux-amd64.tgz --gzip -C binaries attomail
 
       - name: Archive executable
         uses: actions/upload-artifact@v2
