@@ -62,7 +62,6 @@ executable attomail
                      , unix-time
                      -- 
                      , ConfigFile
-                     , email-validate >= 2.2.0
                      , hsemail-ns >= 1.7.7
                      , optparse-applicative
   if flag(use-network-bsd)
@@ -70,7 +69,6 @@ executable attomail
 
   other-modules:
                        CmdArgs
-                     , EmailAddress
                      , ConfigLocation
                      , DeliveryHeaders
 

@@ -16,7 +16,7 @@ Tidy this up, shift some of the logic out to another module.
 -}
 
 
-module Main 
+module Main
 where
 
 import Control.Arrow              (left)
@@ -29,6 +29,7 @@ import Control.Monad.Trans.Maybe  (MaybeT(..))
 
 import Data.ConfigFile            (emptyCP, readfile
                                   , optionxform, get  )
+import Data.List                  (foldl')
 import Data.Monoid
 import Data.Maybe                 (fromJust)
 import Data.Time.Clock.POSIX      (getPOSIXTime)
@@ -51,10 +52,10 @@ import System.Posix.Types         (CGid(..), CUid(..), UserID
                                   , GroupID )
 import System.Random              (getStdRandom, randomR)
 
+import Text.ConfigParser
 
 import ConfigLocation             (configFileLocn)
 import CmdArgs                    (AttCmdArgs(..), withCmdArgs)
-import EmailAddress               (EmailAddress(..), validateFromString)
 import qualified DeliveryHeaders as DH
 import DeliveryHeaders            (Addr(..))
 
@@ -86,9 +87,9 @@ setResUid r e s = throwErrnoIfMinus1_ "setResUid" $ setresuid_c r e s
 -- | opens w/ mode 0644, but gives error if exists
 --
 -- i.e. @-rw-r--r--@
-openIfNExist :: String -> IO Handle
+openIfNExist :: FilePath -> IO Handle
 openIfNExist !filePath = do
-  let mode = foldl F.unionFileModes F.nullFileMode 
+  let mode = foldl' F.unionFileModes F.nullFileMode
               [F.ownerReadMode, F.ownerWriteMode, F.groupReadMode, F.otherReadMode]
       openFileFlags = defaultFileFlags { exclusive = True }
   !fd <- openFd filePath WriteOnly (Just mode) openFileFlags
@@ -98,7 +99,7 @@ openIfNExist !filePath = do
 -- | opens and closes a file created with openIfNExist,
 -- and executes the action f on it in between.
 --
-withMailFile :: String -> (Handle -> IO a) -> IO a
+withMailFile :: FilePath -> (Handle -> IO a) -> IO a
 withMailFile !filePath !f = do
   let open =  openIfNExist filePath
   let close = hClose
@@ -111,19 +112,19 @@ getUserIDs :: String -> IO (UserID, GroupID)
 getUserIDs userName = do
   userEntry <- getUserEntryForName userName
   let uid = userID userEntry
-      gid = userGroupID userEntry 
+      gid = userGroupID userEntry
   return (uid, gid)
 
 
 -- | Return an allegedly unique filename; useful to add new mail files in a maildir. Name is of format <time> <random num> <hostname>.
 --
 -- from https://hackage.haskell.org/package/imm-0.5.1.0/
-getUniqueName :: IO String
+getUniqueName :: IO FilePath
 getUniqueName = do
     time     <- show <$> getPOSIXTime
     hostname <- getHostName
     rand     <- show <$> (getStdRandom $ randomR (1,100000) :: IO Int)
-    return . concat $ [time, ".", rand, ".", hostname]
+    return $ mconcat [time, ".", rand, ".", hostname]
 
 
 -- * utility functions
@@ -150,7 +151,7 @@ mkError :: Error a => (t -> String) -> Either t b -> Either a b
 mkError f = left (strMsg . f)
 
 
--- * Program config    
+-- * Program config
 
 -- | Configuration, as read from the config file.
 data Config = Config { mailDir :: String, userName :: String }
@@ -160,7 +161,7 @@ data Config = Config { mailDir :: String, userName :: String }
 getConfig :: String -> IO Config
 getConfig confFile = do
   cp <- readfile ( emptyCP { optionxform = id } ) (confFile:: String)
-  cp <- return $ let f err = "Error reading config file '" <> confFile <> "': " 
+  cp <- return $ let f err = "Error reading config file '" <> confFile <> "': "
                              <> show err
                  in forceEitherMsg cp f
 
@@ -170,32 +171,6 @@ getConfig confFile = do
                  in  forceEitherMsg (get cp "DEFAULT" "userName") f
   return $ Config mailDir userName
 
--- * deal with addresses
-
--- | the 'Addr' type is simply something that _might_ be an address,
--- this validates it.
-validateAddr
-  :: Maybe Addr -> Either String (Maybe EmailAddress.EmailAddress)
-validateAddr addr = 
-  runMaybeT $ do
-    (Addr addrStr) <- MaybeT $ return addr
-    lift $ EmailAddress.validateFromString addrStr    
-
-
--- | wrapper around validateAddr. Pass in a func that
--- takes in a (presumably bad) address and an error message, and spits
--- out a string
---
--- And then, the Maybe/Either result of validation will
--- get turned into an appropriate MonadError action we can just
--- execute in IO.
-handleAddr
-  :: (MonadError e m, Error e) =>
-     (Addr -> String -> String)
-     -> Maybe Addr -> m (Maybe EmailAddress.EmailAddress)
-handleAddr f addr = 
-  eitherToMonadError $ mkError (f $ fromJust addr) $ validateAddr addr
-
 -- * whopping big monolithic funcs
 
 -- | deliver mail to the maildir directory mailDir,
@@ -203,19 +178,13 @@ handleAddr f addr =
 --
 -- Creates a unique file name w/ getUniqueName. If something creates
 -- the file in between generating the name and delivering mail,
--- an IOError will get thrown. 
+-- an IOError will get thrown.
 --
--- AttCmdArgs should never have 0 recipients
 deliverMail :: FilePath -> String -> AttCmdArgs -> IO ()
 deliverMail mailDir userName cmdArgs = do
   let (!AttCmdArgs !fromAddress !_nm !recipients) = cmdArgs
 
-  !fromAddress <- flip handleAddr fromAddress (\badAddr err -> 
-                          "bad from address " <> show (unAddr badAddr) <>
-                           ", err was: " <> show err)
-  fromAddress <- return $ (Addr . show) <$> fromAddress
-
-  (uid, gid) <- flip modifyIOError 
+  (uid, gid) <- flip modifyIOError
                  (getUserIDs userName)
                  (\ioErr -> userError $ "couldn't get gid and uid for user '"
                     <> userName <> "', err was: " <> show ioErr)
@@ -225,33 +194,33 @@ deliverMail mailDir userName cmdArgs = do
 
   flip modifyIOError
         (setCurrentDirectory =<< makeAbsolute mailDir)
-        (\ioErr -> userError $ "couldn't change to mail dir '" 
+        (\ioErr -> userError $ "couldn't change to mail dir '"
                     <> mailDir <> "', err was: " <> show ioErr)
 
   fileName <- getUniqueName
   tm <- DH.getMailTime
 
   withMailFile fileName $ \outHdl -> do
-    --print "in withMailFile"
     mesgConts <- getContents
     when (length recipients > 1) $
       warning "multiple recipients found, ignoring all but first"
-    -- if the command-line parser works correctly, there should be
-    -- no possibility of an empty list
-    !_ <- return $! assert (not (null recipients))
-    let toAddr = head recipients
-        possHeadered = DH.addHeaders tm mesgConts fromAddress toAddr 
-        res2X = eitherToMonadError $ flip mkError possHeadered (\err -> 
-                    "error parsing stdin as mail message. err was: "
-                    <> show err <> "\n"
-                    <> "fileconts: " <> show mesgConts)
+    when (null recipients) $
+      warning "no recipients found, making up a bogus one"
 
-    headeredMesg <- res2X                    
+    let toAddr :: Addr
+        toAddr = case recipients of
+                    [] -> Addr "foo@bar.com"
+                    (x:_) -> x
 
-    -- putStrLn $ "res: " <> show res
-    !_ <- hPutStr outHdl headeredMesg
-    --print "done withMailFile"
-    return ()
+    finalMesg <- case DH.addHeaders tm mesgConts fromAddress toAddr of
+      Left ex -> do warning $ "err parsing stdin as mail message, but will " <>
+                      "deliver anyway. err was: " <> show ex <> "\n" <>
+                      "stdin conts was: " <>
+                      show mesgConts
+                    return mesgConts
+      Right r -> return r
+
+    hPutStr outHdl finalMesg
 
 
 
@@ -268,22 +237,10 @@ main :: IO ()
 main = do
   (Config !mailDir !userName) <- flip modifyIOError
                                 (getConfig ConfigLocation.configFileLocn)
-                                (\ioErr -> userError $ 
+                                (\ioErr -> userError $
                                    "couldn't open config"
                                    <> "file, error was: " <> show ioErr)
   withCmdArgs (deliverMail mailDir userName)
 
--- * testing
-
--- | here for testing purposes  
-test :: IO AttCmdArgs  
-test =
-  withArgs [
-              "-f", "auditor@auditrix"
-             , "-F", "Joe Bloggs"
-             , "-bm"
-             , "john@john.com"
-           ] 
-           (withCmdArgs return)
 
 
