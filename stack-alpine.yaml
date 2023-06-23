@@ -1,0 +1,21 @@
+# known to compile with ghc versions >= 8.6.5
+# some earlier versions result in a panic during build,
+# due (probably) to some ghc bug to do with type families.
+
+resolver: lts-14.22
+
+packages:
+- .
+
+extra-deps:
+- config-parser-1.2.0.0@sha256:287df8a34d30b131e87a7add5f1a35e30f9c2d61351155b1e82b71cdbf641a97,2949
+- hsemail-ns-1.7.7@sha256:e003ca2eb137d1318908323782dc27190927e09569e8133607b4c1cb9b806afd,1797
+
+flags:
+  attomail:
+    use-network-bsd: true
+    run-doctests: false
+    static: true
+
+allow-newer: true
+

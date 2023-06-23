@@ -20,6 +20,7 @@ jobs:
         cabal: ["3.6"]
         ghc:
           - "8.10.7"
+          - "9.2.5"
 
     steps:
     - uses: actions/checkout@v3
@@ -67,7 +68,7 @@ jobs:
     - name: Freeze dependencies
       shell: bash
       run: |
-        cabal v2-freeze --enable-tests --enable-benchmarks --reorder-goals --max-backjumps=-1
+        cabal v2-freeze --enable-tests --enable-benchmarks --reorder-goals --max-backjumps=-1  --allow-newer
         mv cabal.project.freeze cabal.project.freeze.${{ runner.os }}-${{ matrix.ghc }}
 
     - name: Archive dependencies
@@ -82,7 +83,7 @@ jobs:
         set -x
         export artifact_dir="binaries/attomail-cabal-${{ runner.os }}-${{ matrix.ghc }}"
         mkdir -p "$artifact_dir"
-        cabal v2-install --installdir="$artifact_dir" --install-method=copy
+        cabal v2-install --installdir="$artifact_dir" --install-method=copy --allow-newer
 
     - name: Archive executable
       uses: actions/upload-artifact@v2
@@ -90,4 +91,136 @@ jobs:
         name: attomail-binary
         path: binaries
 
+  stack_build:
+    name: ${{ matrix.os }}/ ${{ matrix.lts }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        lts: ["lts-7"]  #, "lts-14"]
+
+    steps:
+    - uses: actions/checkout@v3
+      name: Check out code
+
+    - uses: haskell/actions/setup@v2
+      name: Setup Stack
+      id: setup-haskell-stack
+      with:
+        ghc-version: "8.10.7"
+        cabal-version: "3.6"
+        enable-stack: true
+        stack-version: "latest"
+
+    - uses: actions/cache@v2
+      name: Cache ~/.stack
+      with:
+        key: ${{ secrets.CI_CACHE_DATE }}-${{ runner.os }}-${{ matrix.lts }}-stack-${{ hashFiles('stack-*yaml.lock') }}
+        restore-keys: |
+          ${{ secrets.CI_CACHE_DATE }}-${{ runner.os }}-${{ matrix.lts }}-stack
+        path: |
+          ${{ steps.setup-haskell-stack.outputs.stack-root }}
+
+    - name: Install dependencies
+      run: |
+        stack build --stack-yaml=stack-${{ matrix.lts }}.yaml --dry-run --dependencies-only
+        stack build --stack-yaml=stack-${{ matrix.lts }}.yaml --fast --dependencies-only
+
+    - name: Build
+      run: |
+        stack --stack-yaml=stack-${{ matrix.lts }}.yaml build
+
+    - name: Test
+      shell: bash
+      run: |
+        set -vxe
+        stack build --stack-yaml=stack-${{ matrix.lts }}.yaml --dry-run
+
+        stack build --stack-yaml=stack-${{ matrix.lts }}.yaml \
+              --test --dependencies-only --no-run-tests
+
+        stack build --stack-yaml=stack-${{ matrix.lts }}.yaml \
+              --test --no-run-tests
+
+        stack build --stack-yaml=stack-${{ matrix.lts }}.yaml \
+              --test
+
+
+    - name: Copy executable to cwd
+      shell: bash
+      run: |
+        set -x
+        export artifact_dir="binaries/attomail-stack-${{ runner.os }}-${{ matrix.lts }}"
+        mkdir -p "$artifact_dir"
+        stack --stack-yaml=stack-${{ matrix.lts }}.yaml --local-bin-path "$artifact_dir" \
+          build --copy-bins
+
+    - name: Archive executable
+      uses: actions/upload-artifact@v2
+      with:
+        name: attomail-binary
+        path: binaries
+
+  alpine_build:
+    runs-on: ubuntu-latest
+    container:
+      image: phlummox/alpine-haskell-stack:latest@sha256:cc0d886b99295eb96e3fc4b406b94e08b4d303a375c721a3bb482331cb3f6fc1
+      options: --user root
+
+    steps:
+      # have to use v3.0.2 else we run into bug
+      # https://github.com/actions/checkout/issues/956
+      # and can't check out code due to permission issues
+      - uses: actions/checkout@v3.0.2
+        name: Check out code
+
+      - name: build with stack
+        run: |
+
+          set -evx
+
+          find
+
+          alpine-scripts/alpine-build.sh
+
+          grep -n ^ PACKAGE_PLUS_VERSION.txt
+
+          echo 'package_and_version='`cat PACKAGE_PLUS_VERSION.txt` >> "$GITHUB_ENV"
+
+          mkdir binaries/attomail-alpine
+          cp binaries/attomail binaries/attomail-alpine/
+          sudo apk add fakeroot
+          fakeroot tar cvf `cat PACKAGE_PLUS_VERSION.txt`.tgz --gzip -C binaries attomail
+
+      - name: Archive executable
+        uses: actions/upload-artifact@v2
+        with:
+          name: attomail-alpine-binary
+          path: binaries
+
+      - name:  Set the release name (for when tagged)
+        run: |
+          set -ex
+
+          release_name=`echo "${{ github.ref }}" | sed 's|^refs/tags/v||'`
+          echo release name is "${release_name}"
+          echo "release_name=${release_name}" >> $GITHUB_ENV
+
+
+      - name:  Show the release name can be read from "env."
+        run: |
+          set -ex
+
+          echo release name is "${{ env.release_name }}"
+
+      - name: Release (if tagged)
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            *.tgz
+          name: ${{ env.release_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
