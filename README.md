@@ -1,4 +1,4 @@
-# attomail [![Hackage version](https://img.shields.io/hackage/v/attomail.svg?label=Hackage)](https://hackage.haskell.org/package/attomail) [![Linux Build Status](https://img.shields.io/travis/phlummox/attomail.svg?label=Linux%20build)](https://travis-ci.org/phlummox/attomail)
+# attomail [![Hackage version](https://img.shields.io/hackage/v/attomail.svg?label=Hackage)](https://hackage.haskell.org/package/attomail)
 
 Minimal mail delivery agent (MDA) for local mail with maildir support - a Haskell re-implementation of femtomail
 
