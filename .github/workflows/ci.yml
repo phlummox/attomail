@@ -1,0 +1,28 @@
+
+name: build-test
+
+on:
+  pull_request:
+    paths-ignore:
+      - '**.md'
+  push:
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  cabal_build:
+    name: ${{ matrix.os }} / ghc ${{ matrix.ghc }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        cabal: ["3.6"]
+        ghc:
+          - "8.2.2"
+          - "8.6.5"
+
+    steps:
+    - uses: actions/checkout@v2
+      name: Check out code
+
