@@ -1,14 +1,14 @@
 name:                attomail
 version:             0.1.0.2
-category:            Network, Email   
+category:            Network, Email
 build-type:          Simple
 cabal-version:       >=1.10
-synopsis:            Minimal mail delivery agent (MDA) for local mail with maildir support 
+synopsis:            Minimal mail delivery agent (MDA) for local mail with maildir support
 description:
   Acts as a minimal (local delivery only, many features un-implemented) mail
   delivery agent (or MDA), delivering mail to a local @maildir@ format spool.
   Handy when you don't want to install an MTA (Mail Transfer Agent) or
-  fuller-featured MDA - you just want a program which accepts 
+  fuller-featured MDA - you just want a program which accepts
   @sendmail@-style delivery of messages from local programs, and dumps them
   somewhere you can read them.
 license:             BSD2
@@ -16,27 +16,45 @@ license-file:        LICENSE
 author:              phlummox
 maintainer:          phlummox2@gmail.com
 copyright:           phlummox 2017
-extra-source-files:  README.md, stack.yaml, ChangeLog.md 
+extra-source-files:  README.md, stack.yaml, ChangeLog.md
 
 source-repository head
   type:     git
   location: https://github.com/phlummox/attomail
 
+flag static
+  description: Pass -static/-fPIC to ghc when linking
+  manual: True
+  default: False
+
+flag use-network-bsd
+  -- network-bsd was split into its own package from network-3.0.0.0
+  -- onwards. We default to using it, but one can build against old
+  -- versions by not doing so.
+  description: Whether to use network-bsd
+  default: True
+  manual: False
+
+flag run-doctests
+  -- running doctests is easy under stack, but tedious under cabal.
+  -- so we default to _not_ running doctests.
+  description: Whether to run doctests
+  manual: True
+  default: False
+
 executable attomail
   hs-source-dirs:      src
   main-is:             Main.hs
   default-language:    Haskell2010
-  build-depends:       
+  build-depends:
                        base >= 4.4 && < 5
                      , bytestring
                      , directory >= 1.2.2.0
-                     , MissingH
-                      -- used for Data.Either.Utils
                      , mtl
                      , network
                      -- used for getHostName
                      , parsec
-                     , random 
+                     , random
                      , text
                      , time
                      , transformers
@@ -47,15 +65,35 @@ executable attomail
                      , email-validate >= 2.2.0
                      , hsemail-ns >= 1.7.7
                      , optparse-applicative
+  if flag(use-network-bsd)
+    build-depends: network-bsd
+
   other-modules:
                        CmdArgs
                      , EmailAddress
                      , ConfigLocation
                      , DeliveryHeaders
+
+  ghc-options:       -Wall -Wincomplete-record-updates
+                     -Wincomplete-uni-patterns
+                     -Wredundant-constraints
   if impl(ghc >=8)
     ghc-options:       -Wall -Wno-name-shadowing -Wno-deprecations
-  else
-    ghc-options:       -Wall 
+  if impl(ghc >= 8.2)
+    ghc-options: -fhide-source-paths
+  if impl(ghc >= 8.4)
+    ghc-options: -Wmissing-export-lists -Wpartial-fields
+  if impl(ghc >= 8.8)
+    ghc-options: -Wno-missing-deriving-strategies
+
+  if flag(static)
+    ghc-options: -fPIC
+    cc-options: -static
+    ld-options: -static
+    -- build-depends:
+    --   unix-compat
+    --   -- >=0.5.2
+
 
 test-suite attomail-doctest
   type:              exitcode-stdio-1.0
@@ -67,5 +105,10 @@ test-suite attomail-doctest
                    , doctest >=0.10
                    , Glob >= 0.7
                    , QuickCheck >= 2.5
+
+  if flag(run-doctests)
+    buildable: True
+  else
+    buildable: False
 
 

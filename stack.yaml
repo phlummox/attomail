@@ -7,7 +7,10 @@ extra-deps:
 - hsemail-ns-1.7.7
 
 # Override default flag values for local packages and extra-deps
-flags: {}
+flags:
+  attomail:
+    use-network-bsd: false
+    run-doctests: true
 
 # Extra package databases containing global packages
 extra-package-dbs: []

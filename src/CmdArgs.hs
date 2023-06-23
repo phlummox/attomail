@@ -29,24 +29,15 @@ import Options.Applicative hiding   (helper, strOption)
 import qualified Options.Applicative as Op
 import Options.Applicative.Types    (readerAsk)
 
-import System.Environment
-
 import DeliveryHeaders              ( Addr(..) )
 
 strOption :: Mod OptionFields String -> Parser String
 strOption = Op.strOption
 
--- | A hidden \"helper\" option which always fails.
-helper :: Parser (a -> a)
-helper = abortOption ShowHelpText $ mconcat
-  [ long "help"
-  , help "Show this help text"
-  , hidden ]
-
 
 -- | Addr option reader
 addr :: ReadM (Maybe Addr)
-addr = (Just . Addr) <$> str
+addr = Just . Addr <$> str
 
 -- | name option reader
 name :: ReadM (Maybe String)
@@ -63,7 +54,7 @@ mode validMode = do
     else readerError $ "can only take mode '" <> [validMode] <> "' as arg"
 
 -- | Data structure for command-line arguments.
-data AttCmdArgs = AttCmdArgs 
+data AttCmdArgs = AttCmdArgs
   {
       senderEnvelopeAddress :: Maybe Addr -- ^ Possible envelope address.
     , senderFullName :: Maybe String  -- ^ Possible sender full name
@@ -121,29 +112,6 @@ version :: String
 version = "0.1.0.2"
 
 
--- | just here for testing
-testMain :: IO ()
-testMain =
-  withArgs [
-              "-f", "someenvddr"
-             , "-F", "Joe Bloggs"
-             , "-bm"
-             , "a@b.com"
-           ] 
-           main
-
--- | local 'main' function, can be used for testing
-main :: IO ()
-main = execParser opts >>= doStuff
-  where
-    opts = info (helper <*> attCmdArgs)
-      ( fullDesc
-        <> progDesc desc
-        <> header h )
-
-    desc = "read a message on stdin and deliver it to user in config file"
-    h    = "attomail v " <> version <> "simple mail delivery to one user" 
-
 -- | just used for testing
 doStuff :: AttCmdArgs -> IO ()
 doStuff x@AttCmdArgs{} = 
@@ -153,7 +121,8 @@ doStuff x@AttCmdArgs{} =
 withCmdArgs :: (AttCmdArgs -> IO b) -> IO b
 withCmdArgs f = execParser opts >>= f
   where
-    opts = info (helper <*> attCmdArgs)
+    --opts = info (helper <*> attCmdArgs)
+    opts = info (attCmdArgs <**> Op.helper)
       ( fullDesc
         <> progDesc desc
         <> header h )

@@ -29,7 +29,6 @@ import Control.Monad.Trans.Maybe  (MaybeT(..))
 
 import Data.ConfigFile            (emptyCP, readfile
                                   , optionxform, get  )
-import Data.Either.Utils          (eitherToMonadError)
 import Data.Monoid
 import Data.Maybe                 (fromJust)
 import Data.Time.Clock.POSIX      (getPOSIXTime)
@@ -135,6 +134,11 @@ forceEitherMsg x f = case
   x of
     Left err -> throw $ userError $ f err
     Right val -> val
+
+-- vendored in from MissingH
+eitherToMonadError :: MonadError e m => Either e a -> m a
+eitherToMonadError (Left x) = throwError x
+eitherToMonadError (Right x) = return x
 
 -- | emit warning to stderr
 warning :: String -> IO ()
@@ -262,8 +266,6 @@ deliverMail mailDir userName cmdArgs = do
 -- @
 main :: IO ()
 main = do
-  --args <- getArgs
-  --hPutStrLn stderr $ "args: " ++ show args
   (Config !mailDir !userName) <- flip modifyIOError
                                 (getConfig ConfigLocation.configFileLocn)
                                 (\ioErr -> userError $ 
