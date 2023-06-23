@@ -19,10 +19,75 @@ jobs:
         os: [ubuntu-latest]
         cabal: ["3.6"]
         ghc:
-          - "8.2.2"
-          - "8.6.5"
+          - "8.10.7"
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       name: Check out code
+
+    - uses: haskell/actions/setup@v2
+      name: Setup Haskell
+      id: setup-haskell-cabal
+      with:
+        ghc-version: ${{ matrix.ghc }}
+        cabal-version: ${{ matrix.cabal }}
+
+    - uses: actions/cache@v2
+      name: Cache ~/.cabal/store
+      with:
+        # oft-given path of ~/.cabal/store is WRONG on windows.
+        # see https://markkarpov.com/post/github-actions-for-haskell-ci.html
+        key: ${{ secrets.CI_CACHE_DATE }}-${{ runner.os }}-${{ matrix.ghc }}-cabal-${{ hashFiles('cabal.project.freeze*') }}-${{github.ref_name}}
+        restore-keys: |
+          ${{ secrets.CI_CACHE_DATE }}-${{ runner.os }}-${{ matrix.ghc }}-cabal-${{ hashFiles('cabal.project.freeze*') }}
+          ${{ secrets.CI_CACHE_DATE }}-${{ runner.os }}-${{ matrix.ghc }}-cabal
+        path: |
+          ${{ steps.setup-haskell-cabal.outputs.cabal-store }}
+          dist-newstyle
+
+    - name: Install dependencies
+      run: |
+        cabal v2-update
+        # `config-parser` imposes unnecessarily strict bounds on parsec.
+        # We need to --allow-newer (here and in Build) to allow it to build against more recent versions.
+        cabal v2-build --dependencies-only --reorder-goals --max-backjumps=-1 --minimize-conflict-set --allow-newer
+
+    - name: Build
+      run: |
+        cabal v2-clean
+        cabal v2-build  --reorder-goals --max-backjumps=-1 --minimize-conflict-set --allow-newer
+
+    # currently no cabal-runnable tests
+    #- name: Tests
+    #  run: |
+    #    cabal v2-build --dependencies-only --enable-tests --enable-benchmarks --reorder-goals --max-backjumps=-1 --minimize-conflict-set
+    #    cabal v2-install hspec-discover
+    #    cabal v2-test --enable-tests
+
+    - name: Freeze dependencies
+      shell: bash
+      run: |
+        cabal v2-freeze --enable-tests --enable-benchmarks --reorder-goals --max-backjumps=-1
+        mv cabal.project.freeze cabal.project.freeze.${{ runner.os }}-${{ matrix.ghc }}
+
+    - name: Archive dependencies
+      uses: actions/upload-artifact@v2
+      with:
+        name: cabal-project-freeze
+        path: cabal.project.freeze.${{ runner.os }}-${{ matrix.ghc }}
+
+    - name: Copy executable to cwd
+      shell: bash
+      run: |
+        set -x
+        export artifact_dir="binaries/attomail-cabal-${{ runner.os }}-${{ matrix.ghc }}"
+        mkdir -p "$artifact_dir"
+        cabal v2-install --installdir="$artifact_dir" --install-method=copy
+
+    - name: Archive executable
+      uses: actions/upload-artifact@v2
+      with:
+        name: attomail-binary
+        path: binaries
+
 
